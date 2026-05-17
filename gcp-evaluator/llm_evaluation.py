@@ -49,10 +49,10 @@ LOGGER = logging.getLogger(__name__)
 # Configuration
 # =============================================================================
 
-OUTPUT_DIR = Path("outputs")
+OUTPUT_DIR = Path("../outputs/llm_evaluation")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-OUTPUT_CSV = OUTPUT_DIR / "evaluation_results.csv"
+OUTPUT_CSV = OUTPUT_DIR / "knowledge_extraction_performance.csv"
 
 
 # =============================================================================

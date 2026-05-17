@@ -3,8 +3,8 @@
 # =========================
 # LLM Experiment tracking
 # =========================
-mlflow[genai]>=2.14.0
-
+# mlflow[genai]>=2.14.0
+mlflow[transformers]>=2.14.0
 
 # =========================
 # General dev packages
