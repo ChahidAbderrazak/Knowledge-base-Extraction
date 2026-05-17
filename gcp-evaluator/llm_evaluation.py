@@ -14,10 +14,8 @@ Architecture:
 - Deterministic validation
 - Multi-run consistency analysis
 
-Author: Your Name
 """
 
-from __future__ import annotations
 
 import json
 import logging

@@ -1,0 +1,17 @@
+
+
+# =========================
+# LLM Experiment tracking
+# =========================
+mlflow[genai]>=2.14.0
+
+
+# =========================
+# General dev packages
+# =========================
+jupyterlab>=3.0.0
+importlib>=1.0.4
+ruff>=0.0.241
+black>=22.3.0
+isort>=5.9.3
+pytest>=6.2.5

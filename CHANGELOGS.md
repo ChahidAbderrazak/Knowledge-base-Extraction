@@ -101,10 +101,3 @@ Elapsed time: 162.50 seconds
   "final_resolution": "NIC replacement and reboot restored stable connectivity; monitoring initiated for 24 hours."
 }
 ```
-#### Metrics
-
-
-```json
-{'valid_json': 1, 'has_event_timeline': 1, 'has_entities': 1, 'has_resolution': 1}
-```
-##
