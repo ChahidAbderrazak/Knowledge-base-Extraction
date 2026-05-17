@@ -1,0 +1,55 @@
+# =========================
+# Core ML / NLP stack (CPU)
+# =========================
+torch --index-url https://download.pytorch.org/whl/cpu
+transformers>=4.44.0
+accelerate>=0.33.0
+sentencepiece>=0.2.0
+safetensors>=0.4.3
+huggingface_hub>=0.24.0
+outlines>=1.3.0
+sentence-transformers>=2.7.0
+
+# =========================
+# Data processing
+# =========================
+pandas>=2.2.0
+numpy>=1.26.0
+
+# =========================
+# Experiment tracking
+# =========================
+mlflow[genai]>=2.14.0
+importlib>=1.0.4
+
+
+# =========================
+# Schema validation
+# =========================
+pydantic>=2.7.0
+
+
+# =========================
+# HF optimizations (optional but recommended for better performance)
+# =========================
+# Optional HF optimizations
+safetensors>=0.4.3
+einops>=0.8.0
+
+# Optional quantization
+bitsandbytes>=0.43.1
+
+# Optional tokenizer speedups
+sentencepiece>=0.2.0
+protobuf>=5.27.0
+
+# =========================
+# API layer (optional but common)
+# =========================
+fastapi>=0.112.0
+uvicorn>=0.30.0
+
+# =========================
+# Utilities
+# =========================
+tqdm>=4.66.0
