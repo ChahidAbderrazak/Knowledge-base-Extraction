@@ -1,29 +1,22 @@
-"""
-LangChain + HF Qwen prompting pipeline with:
-- Structured output (PydanticOutputParser)
-- ChatPromptTemplate
-- HF Transformers via LangChain
-- MLflow tracking
-"""
+from __future__ import annotations
 
-import os
-import time
+import logging
 from typing import List
 
+import instructor
 import mlflow
-import mlflow.transformers
+from evaluator import HybridEvaluator
+from pydantic import BaseModel, ConfigDict
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
-from langchain_core.output_parsers import PydanticOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_huggingface import HuggingFacePipeline
+from prompts import ENRICH_PROMPT, EXTRACT_PROMPT, JUDGE_PROMPT, VERIFY_PROMPT
 
-from pydantic import BaseModel, ConfigDict, Field
+# =========================================================
+# LOGGING
+# =========================================================
 
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    pipeline,
-)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("main")
 
 
 # =========================================================
@@ -31,107 +24,33 @@ from transformers import (
 # =========================================================
 
 
-class OutputStructure(BaseModel):
+class Extraction(BaseModel):
     model_config = ConfigDict(extra="forbid")
     summary: str
-    justifications: str
+    reasonings: List[str]
 
 
-class VerificationIssue(BaseModel):
-    issue_type: str
-    details: str
-
-
-class VerificationResult(BaseModel):
+class Verification(BaseModel):
     fix_required: bool
-    issues: List[VerificationIssue] = Field(default_factory=list)
+    issues: List[str]
+
+
+class JudgeSchema(BaseModel):
+    faithfulness: float
+    coverage: float
+    coherence: float
+    hallucination_detected: bool
+    overall_score: float
+    reasoning: str
 
 
 # =========================================================
-# PROMPTS
-# =========================================================
-
-EXTRACTION_PROMPT = ChatPromptTemplate.from_template(
-    """
-You are an expert industrial incident reconstruction system.
-
-TASK:
-Generate a concise structured incident summary and justification.
-
-RULES:
-- Preserve telemetry
-- Preserve IPs
-- Preserve device identifiers
-- Preserve technician actions
-- Preserve chronology
-- Do NOT hallucinate
-- Ignore noise and irrelevant chatter
-
-WORKLOG:
-{worklog}
-
-{format_instructions}
-"""
-)
-
-VERIFICATION_PROMPT = ChatPromptTemplate.from_template(
-    """
-You are a strict validation engine.
-
-Check:
-- missing telemetry
-- missing identifiers
-- hallucinations
-- compressed event chains
-
-Return ONLY structured JSON.
-
-WORKLOG:
-{worklog}
-
-EXTRACTED:
-{extracted}
-
-{format_instructions}
-"""
-)
-
-ENRICH_PROMPT = ChatPromptTemplate.from_template(
-    """
-You are a correction engine.
-
-Fix only if verification requires it.
-
-WORKLOG:
-{worklog}
-
-EXTRACTED:
-{extracted}
-
-VERIFICATION:
-{verification}
-
-{format_instructions}
-"""
-)
-
-
-# =========================================================
-# MODEL LOADING
+# MODEL LOADER
 # =========================================================
 
 
-def load_llm(model_name: str):
-
-    model_path = os.path.abspath(model_name)
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_path,
-        local_files_only=True,
-    )
-
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+def load_client(model_path: str):
+    tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
 
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
@@ -140,75 +59,16 @@ def load_llm(model_name: str):
         local_files_only=True,
     )
 
-    # IMPORTANT FIX:
-    # ❌ NO GenerationConfig (caused conflicts)
-    # ❌ NO generation_config argument
-    # ✔ pass params directly here
-
     pipe = pipeline(
-        task="text-generation",
+        "text-generation",
         model=model,
         tokenizer=tokenizer,
-        return_full_text=False,
         max_new_tokens=512,
         temperature=0.1,
-        top_p=0.9,
-        do_sample=True,
-        repetition_penalty=1.05,
-        eos_token_id=tokenizer.eos_token_id,
-        pad_token_id=tokenizer.pad_token_id,
+        return_full_text=False,
     )
 
-    return HuggingFacePipeline(pipeline=pipe)
-
-
-# =========================================================
-# SAFE PARSING
-# =========================================================
-
-
-def safe_parse_output(text: str, schema):
-
-    try:
-        return schema.model_validate_json(text)
-    except Exception:
-        pass
-
-    text = text.strip()
-
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.startswith("json"):
-            text = text[4:].strip()
-
-    start = text.find("{")
-    if start == -1:
-        raise ValueError("No JSON found")
-
-    depth = 0
-    in_str = False
-    escape = False
-
-    for i, ch in enumerate(text[start:], start):
-        if in_str:
-            if escape:
-                escape = False
-            elif ch == "\\":
-                escape = True
-            elif ch == '"':
-                in_str = False
-        else:
-            if ch == '"':
-                in_str = True
-            elif ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    json_str = text[start : i + 1]
-                    return schema.model_validate_json(json_str)
-
-    raise ValueError("Invalid JSON output")
+    return instructor.from_transformers(pipe)
 
 
 # =========================================================
@@ -216,115 +76,92 @@ def safe_parse_output(text: str, schema):
 # =========================================================
 
 
-def extract(llm, worklog):
+def extract(client, text: str) -> Extraction:
+    prompt = EXTRACT_PROMPT.format(input_text=text)
 
-    parser = PydanticOutputParser(OutputStructure)
-
-    chain = EXTRACTION_PROMPT | llm
-
-    raw = chain.invoke(
-        {
-            "worklog": worklog,
-            "format_instructions": parser.get_format_instructions(),
-        }
+    return client.chat.completions.create(
+        messages=[{"role": "user", "content": prompt}],
+        response_model=Extraction,
     )
 
-    return safe_parse_output(raw, OutputStructure)
 
-
-def verify(llm, worklog, extracted):
-
-    parser = PydanticOutputParser(VerificationResult)
-
-    chain = VERIFICATION_PROMPT | llm
-
-    raw = chain.invoke(
-        {
-            "worklog": worklog,
-            "extracted": extracted.model_dump_json(indent=2),
-            "format_instructions": parser.get_format_instructions(),
-        }
+def verify(client, text: str, extraction: Extraction) -> Verification:
+    prompt = VERIFY_PROMPT.format(
+        input_text=text,
+        extracted=extraction.model_dump_json(indent=2),
     )
 
-    return safe_parse_output(raw, VerificationResult)
+    return client.chat.completions.create(
+        messages=[{"role": "user", "content": prompt}],
+        response_model=Verification,
+    )
 
 
-def enrich(llm, worklog, extracted, verification):
-
+def enrich(client, text: str, extraction: Extraction, verification: Verification) -> Extraction:
     if not verification.fix_required:
-        return extracted
+        return extraction
 
-    parser = PydanticOutputParser(OutputStructure)
-
-    chain = ENRICH_PROMPT | llm
-
-    raw = chain.invoke(
-        {
-            "worklog": worklog,
-            "extracted": extracted.model_dump_json(indent=2),
-            "verification": verification.model_dump_json(indent=2),
-            "format_instructions": parser.get_format_instructions(),
-        }
+    prompt = ENRICH_PROMPT.format(
+        input_text=text,
+        extracted=extraction.model_dump_json(indent=2),
+        verification=verification.model_dump_json(indent=2),
     )
 
-    return safe_parse_output(raw, OutputStructure)
+    return client.chat.completions.create(
+        messages=[{"role": "user", "content": prompt}],
+        response_model=Extraction,
+    )
 
 
 # =========================================================
 # MAIN
 # =========================================================
 
+WORKLOG = """
+Packet loss spike in Montreal cluster.
+FAN failure detected.
+Technician replaced fan tray.
+System recovered.
+"""
+
+MODEL_PATH = "../model/Qwen2.5-1.5B-Instruct"
+EMBED_PATH = "../model/all-MiniLM-L6-v2"
+
 
 def main():
 
-    model_name = "../model/Qwen2.5-1.5B-Instruct"
+    mlflow.set_experiment("qwen_full_pipeline")
 
-    worklog = """
-INC-88421
+    client = load_client(MODEL_PATH)
 
-Packet loss spike in Montreal cluster EAGG-MTL-02.
-Latency 12ms → 241ms.
-BGP flaps detected.
-
-RT-EAGG-19:
-TEMP=97C
-FAN_RPM=0
-CRC_ERR=11842
-
-FAN-TRAY-2 failure confirmed.
-
-Technician Maria L replaced fan tray.
-
-BGP reset 10.9.0.1
-Convergence 96 sec
-
-Recovery after hardware replacement.
-"""
-
-    mlflow.set_experiment("langchain_qwen_pipeline")
-    mlflow.transformers.autolog()
+    evaluator = HybridEvaluator(
+        embed_model=EMBED_PATH,
+        judge_client=client,
+    )
 
     with mlflow.start_run():
-        start = time.time()
+        logger.info("STEP: extract")
+        extraction = extract(client, WORKLOG)
 
-        llm = load_llm(model_name)
+        logger.info("STEP: verify")
+        verification = verify(client, WORKLOG, extraction)
 
-        extraction = extract(llm, worklog)
-        verification = verify(llm, worklog, extraction)
-        final = enrich(llm, worklog, extraction, verification)
+        logger.info("STEP: enrich")
+        final = enrich(client, WORKLOG, extraction, verification)
 
-        latency = time.time() - start
+        logger.info("STEP: evaluate")
 
-        mlflow.log_param("model_name", model_name)
-        mlflow.log_metric("latency_sec", latency)
-        mlflow.log_metric("fix_required", int(verification.fix_required))
+        result = evaluator.evaluate(
+            source=WORKLOG,
+            extracted=final.model_dump(),
+            judge_prompt=JUDGE_PROMPT,
+            judge_schema=JudgeSchema,
+        )
 
-        mlflow.log_text(worklog, "input.txt")
-        mlflow.log_text(extraction.model_dump_json(indent=2), "extraction.json")
-        mlflow.log_text(verification.model_dump_json(indent=2), "verification.json")
-        mlflow.log_text(final.model_dump_json(indent=2), "final.json")
+        mlflow.log_metric("overall", result.overall)
 
         print(final.model_dump_json(indent=2))
+        print(result)
 
 
 if __name__ == "__main__":

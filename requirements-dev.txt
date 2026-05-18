@@ -7,6 +7,11 @@
 mlflow[transformers]>=2.14.0
 
 # =========================
+# User interface
+# =========================
+streamlit
+
+# =========================
 # General dev packages
 # =========================
 jupyterlab>=3.0.0
