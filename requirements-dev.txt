@@ -6,10 +6,10 @@
 # mlflow[genai]>=2.14.0
 mlflow[transformers]>=2.14.0
 
-# =========================
-# User interface
-# =========================
-streamlit
+# # =========================
+# # User interface
+# # =========================
+# streamlit
 
 # =========================
 # General dev packages
