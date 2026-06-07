@@ -1,0 +1,15 @@
+{
+  "summary": "Industrial Incident Analysis",
+  "severity": "Critical",
+  "reasonings": [
+    {
+      "step_id": 1,
+      "step_type": "Ping Test Failure",
+      "title": "Ping Test to External IP Failed",
+      "explanation": "Ping tests to both the external IP addresses of 10.0.2.1 and 10.0.0.254 were unsuccessful. The first ping failed completely, indicating a complete network failure. The second ping had only two successful responses out of three attempts, with one timeout.",
+      "causal_dependency": "Network Connectivity",
+      "confidence": 90,
+      "validation_status": "Incomplete"
+    }
+  ]
+}

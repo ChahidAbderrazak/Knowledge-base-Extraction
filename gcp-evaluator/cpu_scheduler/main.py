@@ -1,12 +1,12 @@
-from google.cloud import bigquery
 from datetime import datetime
-import os
 
-from common.config import BATCH_SIZE, BACKLOG_THRESHOLD
+from common.config import BACKLOG_THRESHOLD, BATCH_SIZE
+from google.cloud import bigquery
 
 client = bigquery.Client()
 
 DATASET = "evaluation"
+
 
 def get_pending_count():
     query = f"""

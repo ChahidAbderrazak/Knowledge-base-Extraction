@@ -1,0 +1,43 @@
+{
+  "summary": "The incident involved packet loss and latency spikes in the Montreal cluster (EAGG-MTL-02) due to BGP flaps and subsequent FAN-TRAY-2 failure. The technician Maria L successfully replaced the failed fan tray, leading to a recovery period of approximately 96 seconds with BGP convergence within that timeframe.",
+  "impacted_systems": [],
+  "severity": null,
+  "reasonings": [
+    {
+      "step_id": 1,
+      "step_type": "identify",
+      "title": "Packet Loss Spike",
+      "explanation": "A sudden increase in packet loss from 12 ms to 241 ms was observed in the Montreal cluster (EAGG-MTL-02). This suggests network instability or congestion.",
+      "causal_dependency": "packet_loss_spike -> latency_increase",
+      "confidence": 50,
+      "validation_status": "confirmed"
+    },
+    {
+      "step_id": 2,
+      "step_type": "identify",
+      "title": "BGP Flaps",
+      "explanation": "BGP flaps were detected, indicating a disruption in Border Gateway Protocol communication between different networks.",
+      "causal_dependency": "bgp_flaps -> packet_loss_spike",
+      "confidence": 75,
+      "validation_status": "confirmed"
+    },
+    {
+      "step_id": 3,
+      "step_type": "identify",
+      "title": "FAN-TRAY-2 Failure",
+      "explanation": "The FAN-TRAY-2 component, which is responsible for cooling fans, experienced a failure.",
+      "causal_dependency": "fan_tray_failure -> bgp_flaps",
+      "confidence": 80,
+      "validation_status": "confirmed"
+    },
+    {
+      "step_id": 4,
+      "step_type": "resolve",
+      "title": "Fan Tray Replacement",
+      "explanation": "Maria L successfully replaced the faulty FAN-TRAY-2.",
+      "causal_dependency": "replacement_of_fan_tray -> recovery_after_replacement",
+      "confidence": 90,
+      "validation_status": "validated"
+    }
+  ]
+}

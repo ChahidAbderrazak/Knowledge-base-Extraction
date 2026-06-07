@@ -1,3 +1,5 @@
+import json
+import os
 import time
 from typing import List, Optional
 
@@ -63,7 +65,6 @@ bnb_config = BitsAndBytesConfig(
     bnb_4bit_use_double_quant=True,
 )
 
-
 # =========================================================
 # TOKENIZER
 # =========================================================
@@ -122,6 +123,29 @@ Convergence 96 sec
 Recovery after hardware replacement.
 """
 
+WORKLOG = """
+CATALINA workfloow
+AUTO test started 03:12, poll thread 8
+RTE-51 silent on SNMP/161, no get, no trap
+ping 10.0.2.1 -> 100% loss, 30ms>NA, ttl 0
+reachability probe icmp echo req out, reply none
+route via 10.0.0.254 pulse: 2/2 acks then hang
+poll event sysUpTime missing, config pull timeout
+BGP reset 10.9.0.1
+Convergence 96 sec
+
+ping 10.0.2.1: 100% loss, 3 probes, no response
+ping 10.0.0.254: 2/3 success, 1 timeout
+reachability check icmp echo req/out, reply missing from router
+
+error with conect #hf78.00g.0oh. full apt updagreate needed,
+arp table stale, mac 00:16:3e.. never learned
+switchover probe 192.168.100.1 ok, vty no answer
+auto test RMON OID 1.3.6.1.2.1 fail, pcap keepalive seen
+ticket AUTO-307 manual af/ba layer reset needed
+
+rechekc with L1 and customer
+"""
 
 PROMPT = f"""
 You are an industrial incident reconstruction system.
@@ -164,5 +188,17 @@ print(f"\nGeneration completed in {elapsed_time:.2f} seconds.")
 print("\n" + "=" * 80)
 print("STRUCTURED OUTPUT")
 print("=" * 80)
-print(result)
-print(result.model_dump())
+print(f" LLM Response [{type(result).__name__}]: {result}")
+
+# =========================================================
+# SAVE RESULTS
+# =========================================================
+
+output_path = "outputs/summary_2.json"
+os.makedirs(os.path.dirname(output_path), exist_ok=True)
+result_dict = json.loads(result)
+
+with open(output_path, "w", encoding="utf-8") as f:
+    json.dump(result_dict, f, indent=2, ensure_ascii=False)
+
+print(f"Saved structured output to {output_path}")

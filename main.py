@@ -467,7 +467,6 @@ Next action: monitor stability for 24 hours.
     mlflow.set_experiment("knowledge_extraction_pipeline")
 
     with mlflow.start_run():
-
         start_time = time.time()
 
         print("[STEP] Initializing pipeline...")
